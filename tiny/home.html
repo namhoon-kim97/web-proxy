@@ -2,9 +2,22 @@
   <head>
     <title>test</title>
   </head>
+  <script>
+    function adder(e) {
+      e.preventDefault();
+      let first = document.getElementById("first").value;
+      let second = document.getElementById("second").value;
+      window.location.replace("/cgi-bin/adder?" + first + "&" + second);
+    }
+  </script>
   <body>
     <img align="middle" src="godzilla.gif" />
     Dave O'Hallaron
     <video src="silicagel.mp4" controls></video>
+    <form onsubmit="adder(event)">
+      <input type="number" id="first" />
+      <input type="number" id="second" />
+      <button type="submit" value="Add" />
+    </form>
   </body>
 </html>

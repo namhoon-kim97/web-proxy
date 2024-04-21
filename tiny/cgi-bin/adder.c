@@ -28,7 +28,10 @@ int main(void) {
   printf("Connection: close\r\n");
   printf("Content-length: %d\r\n", (int)strlen(content));
   printf("content-type: text/html\r\n\r\n");
-  printf("%s", content);
+  // printf("%s", content);
+
+  if (strcasecmp(getenv("REQUEST_METHOD"), "GET") == 0)
+    printf("%s", content);
   fflush(stdout);
 
   exit(0);
