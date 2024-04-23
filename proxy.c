@@ -1,9 +1,10 @@
+#include "cache.h"
 #include "csapp.h"
 #include <stdio.h>
 
-/* Recommended max cache and object sizes */
-#define MAX_CACHE_SIZE 1049000
-#define MAX_OBJECT_SIZE 102400
+// /* Recommended max cache and object sizes */
+// #define MAX_CACHE_SIZE 1049000
+// #define MAX_OBJECT_SIZE 102400
 
 /* You won't lose style points for including this long line in your code */
 static const char *request_hdr_format = "%s %s HTTP/1.0\r\n";
@@ -15,16 +16,26 @@ static const char *connection_hdr = "Connection: close\r\n";
 static const char *proxy_connection_hdr = "Proxy-Connection: close\r\n";
 static const char *EOL = "\r\n";
 
+/* For cache */
+LRU_Cache *cache;
+
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
-int parse_uri(char *uri, char *hostname, char *port, char *filename);
+void parse_uri(char *uri, char *hostname, char *port, char *filename);
 int server_request(rio_t *client_rio, char *hostname, char *port, char *path,
                    char *method, char *hdr);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
                  char *longmsg);
 void *thread(void *vargp);
 
+void sigint_handler(int sig) {
+  printf("Exiting and freeing resources...\n");
+  freeCache(cache);
+  exit(0);
+}
+
 int main(int argc, char **argv) {
+  signal(SIGINT, sigint_handler);
   int listenfd, *connfdp;
   char hostname[MAXLINE], port[MAXLINE];
   socklen_t clientlen;
@@ -36,6 +47,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "usage: %s <port>\n", argv[0]);
     exit(1);
   }
+  cache = createCache(MAX_CACHE_SIZE);
 
   listenfd = Open_listenfd(argv[1]);
   while (1) {
@@ -50,6 +62,7 @@ int main(int argc, char **argv) {
     printf("Accepted connection from (%s, %s)\n", hostname, port);
     Pthread_create(&tid, NULL, thread, connfdp);
   }
+  freeCache(cache);
 }
 
 void *thread(void *vargp) {
@@ -90,6 +103,15 @@ void doit(int fd) {
                 "501 에러. 올바른 요청이 아닙니다.");
   }
 
+  // 캐시 검사
+  Node *cache_node = find_cache(cache, uri);
+  if (cache_node) {             // 캐시 된 웹 객체가 있으면
+    send_cache(fd, cache_node); // 캐싱된 웹 객체를 Client에 바로 전송
+    moveToHead(cache,
+               cache_node); // 사용한 웹 객체의 순서를 맨 앞으로 갱신 후 return
+    return;
+  }
+
   // 원 서버에 연결
   serverfd = Open_clientfd(server_host, server_port);
 
@@ -99,16 +121,24 @@ void doit(int fd) {
     clienterror(fd, method, "501", "잘못된 요청",
                 "501 에러. 올바른 요청이 아닙니다.");
 
-  // 서버에 요청메시지를 보낸다.
+  // 서버에 요청메시지를 보냄
   Rio_readinitb(&server_rio, serverfd);
   Rio_writen(serverfd, new_hdr, strlen(new_hdr));
 
-  // 서버 응답이 오면 클라이언트에게 전달한다.
+  // 서버 응답이 오면 클라이언트에게 전달
+  char cache_buf[MAX_OBJECT_SIZE]; // 캐시 buf생성
+  size_t size = 0;                 // 캐시 객체 사이즈 측정 변수
   size_t n;
   while ((n = Rio_readlineb(&server_rio, buf, MAXLINE)) > 0) {
+    size += n;
+    if (size < MAX_OBJECT_SIZE)
+      strcat(cache_buf, buf);
     Rio_writen(fd, buf, n);
   }
   Close(serverfd);
+
+  if (size < MAX_OBJECT_SIZE) // 캐시 가능한 크기면 캐시 추가
+    add_cache(cache, uri, cache_buf, size);
 }
 
 int server_request(rio_t *client_rio, char *hostname, char *port, char *path,
@@ -181,7 +211,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
   Rio_writen(fd, body, strlen(body));
 }
 
-int parse_uri(char *uri, char *hostname, char *port, char *filename) {
+void parse_uri(char *uri, char *hostname, char *port, char *filename) {
   char *ptr;
   char *hoststart, *first_hoststart;
   char *portstart;
@@ -230,6 +260,4 @@ int parse_uri(char *uri, char *hostname, char *port, char *filename) {
     }
     strcpy(filename, "/"); // 기본 경로
   }
-
-  return 0;
 }
