@@ -22,12 +22,14 @@ int server_request(rio_t *client_rio, char *hostname, char *port, char *path,
                    char *method, char *hdr);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
                  char *longmsg);
+void *thread(void *vargp);
 
 int main(int argc, char **argv) {
-  int listenfd, connfd;
+  int listenfd, *connfdp;
   char hostname[MAXLINE], port[MAXLINE];
   socklen_t clientlen;
   struct sockaddr_storage clientaddr;
+  pthread_t tid;
 
   /* Check command line args */
   if (argc != 2) {
@@ -38,14 +40,25 @@ int main(int argc, char **argv) {
   listenfd = Open_listenfd(argv[1]);
   while (1) {
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr,
-                    &clientlen); // line:netp:tiny:accept
+    connfdp = Malloc(sizeof(int));
+    *connfdp = Accept(listenfd, (SA *)&clientaddr,
+                      &clientlen); // line:netp:tiny:accept
+    /*connfd = Accept(listenfd, (SA *)&clientaddr,
+                    &clientlen); // line:netp:tiny:accept */
     Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE,
                 0);
     printf("Accepted connection from (%s, %s)\n", hostname, port);
-    doit(connfd);  // line:netp:tiny:doit
-    Close(connfd); // line:netp:tiny:close
+    Pthread_create(&tid, NULL, thread, connfdp);
   }
+}
+
+void *thread(void *vargp) {
+  int connfd = *((int *)vargp);
+  Pthread_detach(pthread_self());
+  Free(vargp);
+  doit(connfd);
+  Close(connfd);
+  return NULL;
 }
 
 void doit(int fd) {
@@ -55,7 +68,7 @@ void doit(int fd) {
   char server_host[MAXLINE], server_port[MAXLINE], filename[MAXLINE];
   rio_t client_rio, server_rio;
 
-  // 1.클라이언트와의 fd를 클라이언트용 rio에 연결
+  // 클라이언트와의 fd를 클라이언트용 client_rio에 연결
   Rio_readinitb(&client_rio, fd);
   Rio_readlineb(&client_rio, buf, MAXLINE);
 
@@ -67,7 +80,7 @@ void doit(int fd) {
                 "Tiny does not implement this method");
     return;
   }
-  // read_requesthdrs(&client_rio); // 헤더 출력
+
   if (strstr(uri, "favicon"))
     return;
 
@@ -80,20 +93,17 @@ void doit(int fd) {
   // 원 서버에 연결
   serverfd = Open_clientfd(server_host, server_port);
 
-  // 4.클라이언트가 보낸 첫줄을 이미 읽어 유실되었고, HTTP 버전을 바꾸거나 추가
-  // 헤더를 붙일 필요가 있으므로, 클라이언트가 보내는 메시지를 한줄씩
-  // 읽어들이면서(Rio_readlineb) 재조합하여 서버에 보낼 HTTP 요청메시지를 새로
-  // 생성해준다.
+  // 서버에 보낼 HTTP 요청메시지를 새로 생성
   if (!server_request(&client_rio, server_host, server_port, filename, method,
                       new_hdr))
     clienterror(fd, method, "501", "잘못된 요청",
                 "501 에러. 올바른 요청이 아닙니다.");
 
-  // 5.서버에 요청메시지를 보낸다.
+  // 서버에 요청메시지를 보낸다.
   Rio_readinitb(&server_rio, serverfd);
   Rio_writen(serverfd, new_hdr, strlen(new_hdr));
 
-  // 6.서버 응답이 오면 클라이언트에게 전달한다.
+  // 서버 응답이 오면 클라이언트에게 전달한다.
   size_t n;
   while ((n = Rio_readlineb(&server_rio, buf, MAXLINE)) > 0) {
     Rio_writen(fd, buf, n);
@@ -169,17 +179,6 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
   sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
   Rio_writen(fd, buf, strlen(buf));
   Rio_writen(fd, body, strlen(body));
-}
-
-void read_requesthdrs(rio_t *rp) {
-  char buf[MAXLINE];
-
-  Rio_readlineb(rp, buf, MAXLINE);
-  while (strcmp(buf, "\r\n")) {
-    Rio_readlineb(rp, buf, MAXLINE);
-    printf("%s", buf);
-  }
-  return;
 }
 
 int parse_uri(char *uri, char *hostname, char *port, char *filename) {
