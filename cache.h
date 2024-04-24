@@ -21,13 +21,13 @@ typedef struct {
   int capacity, size;
 } LRU_Cache;
 
-static Node *createNode(char *url, char *data, size_t data_length);
+static Node *createNode(char *uri, char *data, size_t data_length);
 
 LRU_Cache *createCache(int capacity);
 void moveToHead(LRU_Cache *cache, Node *node);
-Node *find_cache(LRU_Cache *cache, char *url);
+Node *find_cache(LRU_Cache *cache, char *uri);
 void send_cache(int fd, Node *node);
-void add_cache(LRU_Cache *cache, char *url, char *data, size_t data_length);
+void add_cache(LRU_Cache *cache, char *uri, char *data, size_t data_length);
 void freeCache(LRU_Cache *cache);
 
 #endif

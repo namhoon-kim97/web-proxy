@@ -75,7 +75,7 @@ void add_cache(LRU_Cache *cache, char *uri, char *data, size_t data_length) {
     }
     free(tail->data);
     free(tail);
-    cache->size--;
+    cache->size -= data_length;
   }
   Node *newNode = createNode(uri, data, data_length);
   if (!newNode)
@@ -87,7 +87,7 @@ void add_cache(LRU_Cache *cache, char *uri, char *data, size_t data_length) {
     cache->head->prev = newNode;
     cache->head = newNode;
   }
-  cache->size++;
+  cache->size += data_length;
 }
 
 // 캐시 해제
