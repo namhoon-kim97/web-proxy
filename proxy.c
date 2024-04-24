@@ -2,10 +2,6 @@
 #include "csapp.h"
 #include <stdio.h>
 
-// /* Recommended max cache and object sizes */
-// #define MAX_CACHE_SIZE 1049000
-// #define MAX_OBJECT_SIZE 102400
-
 /* You won't lose style points for including this long line in your code */
 static const char *request_hdr_format = "%s %s HTTP/1.0\r\n";
 static const char *host_hdr_format = "Host: %s\r\n";
@@ -35,7 +31,8 @@ void sigint_handler(int sig) {
 }
 
 int main(int argc, char **argv) {
-  signal(SIGINT, sigint_handler);
+  signal(SIGINT, sigint_handler); // 메모리 누수 방지
+
   int listenfd, *connfdp;
   char hostname[MAXLINE], port[MAXLINE];
   socklen_t clientlen;
@@ -130,10 +127,13 @@ void doit(int fd) {
   size_t size = 0;                 // 캐시 객체 사이즈 측정 변수
   size_t n;
   while ((n = Rio_readlineb(&server_rio, buf, MAXLINE)) > 0) {
-    size += n;
-    if (size < MAX_OBJECT_SIZE)
-      strcat(cache_buf, buf);
+    if (size < MAX_OBJECT_SIZE) {
+      printf("\n\n %d %d \n\n", size, strlen(cache_buf));
+      memcpy(cache_buf + size, buf,
+             n); // cache_buf에 현재 길이 위치에서 buf를 n만큼 복사
+    }
     Rio_writen(fd, buf, n);
+    size += n;
   }
   Close(serverfd);
 
@@ -150,7 +150,7 @@ int server_request(rio_t *client_rio, char *hostname, char *port, char *path,
   char *CONN = "Connection";
   char *UA = "User-Agent";
   char *P_CONN = "Proxy-Connection";
-  sprintf(req_hdr, request_hdr_format, method, path); // method url version
+  sprintf(req_hdr, request_hdr_format, method, path); // method uri version
 
   while (1) {
     if (Rio_readlineb(client_rio, buf, MAXLINE) == 0)
@@ -178,7 +178,7 @@ int server_request(rio_t *client_rio, char *hostname, char *port, char *path,
   }
 
   sprintf(hdr, "%s%s%s%s%s%s",
-          req_hdr,  // METHOD URL VERSION
+          req_hdr,  // METHOD URI VERSION
           host_hdr, // Host header
           user_agent_hdr, connection_hdr, proxy_connection_hdr, EOL);
   if (strlen(hdr))

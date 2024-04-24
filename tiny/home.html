@@ -7,7 +7,7 @@
       e.preventDefault();
       let first = document.getElementById("first").value;
       let second = document.getElementById("second").value;
-      window.location.replace("/cgi-bin/adder?" + first + "&" + second);
+      window.location.replace("cgi-bin/adder?" + first + "&" + second);
     }
   </script>
   <body>
@@ -16,7 +16,7 @@
     <form onsubmit="adder(event)">
       <input type="number" id="first" />
       <input type="number" id="second" />
-      <button type="submit" value="Add" />
+      <button type="submit" value="Add">Add</button>
     </form>
   </body>
 </html>

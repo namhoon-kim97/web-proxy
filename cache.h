@@ -10,7 +10,7 @@
 #define MAX_OBJECT_SIZE 102400
 
 typedef struct Node {
-  char url[MAXLINE];
+  char uri[MAXLINE];
   char *data;
   size_t data_length;
   struct Node *prev, *next;

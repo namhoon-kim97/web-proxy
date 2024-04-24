@@ -2,11 +2,11 @@
 #include "csapp.h"
 
 // 새로운 노드 생성
-static Node *createNode(char *url, char *data, size_t data_length) {
+static Node *createNode(char *uri, char *data, size_t data_length) {
   Node *newNode = (Node *)malloc(sizeof(Node));
   if (!newNode)
     return NULL;
-  strcpy(newNode->url, url);
+  strcpy(newNode->uri, uri);
   newNode->data = (char *)malloc(data_length);
   if (!newNode->data) {
     free(newNode);
@@ -46,11 +46,11 @@ void moveToHead(LRU_Cache *cache, Node *node) {
   cache->head = node;
 }
 
-// URL을 기반으로 노드 찾기
-Node *find_cache(LRU_Cache *cache, char *url) {
+// URI를 기반으로 노드 찾기
+Node *find_cache(LRU_Cache *cache, char *uri) {
   Node *node = cache->head;
   while (node) {
-    if (strcmp(node->url, url) == 0) {
+    if (strcmp(node->uri, uri) == 0) {
       return node;
     }
     node = node->next;
@@ -64,7 +64,7 @@ void send_cache(int fd, Node *node) {
 }
 
 // 캐시에 새로운 데이터를 추가
-void add_cache(LRU_Cache *cache, char *url, char *data, size_t data_length) {
+void add_cache(LRU_Cache *cache, char *uri, char *data, size_t data_length) {
   if (cache->size == cache->capacity) { // 캐시가 꽉 찼으면
     Node *tail = cache->tail;
     if (cache->head == cache->tail) {
@@ -77,7 +77,7 @@ void add_cache(LRU_Cache *cache, char *url, char *data, size_t data_length) {
     free(tail);
     cache->size--;
   }
-  Node *newNode = createNode(url, data, data_length);
+  Node *newNode = createNode(uri, data, data_length);
   if (!newNode)
     return;
   if (cache->head == NULL) {
