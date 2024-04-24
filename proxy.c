@@ -110,7 +110,9 @@ void doit(int fd) {
   }
 
   // 원 서버에 연결
-  serverfd = Open_clientfd(server_host, server_port);
+  serverfd = open_clientfd(server_host, server_port);
+  if (serverfd < 0)
+    return;
 
   // 서버에 보낼 HTTP 요청메시지를 새로 생성
   if (!server_request(&client_rio, server_host, server_port, filename, method,
@@ -128,7 +130,6 @@ void doit(int fd) {
   size_t n;
   while ((n = Rio_readlineb(&server_rio, buf, MAXLINE)) > 0) {
     if (size < MAX_OBJECT_SIZE) {
-      printf("\n\n %d %d \n\n", size, strlen(cache_buf));
       memcpy(cache_buf + size, buf,
              n); // cache_buf에 현재 길이 위치에서 buf를 n만큼 복사
     }
@@ -144,7 +145,7 @@ void doit(int fd) {
 int server_request(rio_t *client_rio, char *hostname, char *port, char *path,
                    char *method, char *hdr) {
   // 프록시서버로 들어온 요청을 서버에 전달하기 위해 HTTP 헤더 생성
-  char req_hdr[MAXLINE], additional_hdr[MAXLINE], host_hdr[MAXLINE];
+  char req_hdr[MAXLINE], host_hdr[MAXLINE];
   char buf[MAXLINE];
   char *HOST = "Host";
   char *CONN = "Connection";
@@ -162,14 +163,6 @@ int server_request(rio_t *client_rio, char *hostname, char *port, char *path,
       // 호스트 헤더 지정
       strcpy(host_hdr, buf);
       continue;
-    }
-
-    if (strncasecmp(buf, CONN, strlen(CONN)) &&
-        strncasecmp(buf, UA, strlen(UA)) &&
-        strncasecmp(buf, P_CONN, strlen(P_CONN))) {
-      // 미리 준비된 헤더가 아니면 추가 헤더에 추가
-      strcat(additional_hdr, buf);
-      strcat(additional_hdr, "\r\n");
     }
   }
 
@@ -212,8 +205,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
 }
 
 void parse_uri(char *uri, char *hostname, char *port, char *filename) {
-  char *ptr;
-  char *hoststart, *first_hoststart;
+  char *hoststart;
   char *portstart;
   char *pathstart;
   int len;
